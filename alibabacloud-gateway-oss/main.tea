@@ -16,6 +16,7 @@ extends SPI;
 
 type @default_signed_params = [ string ]
 type @except_signed_params = [ string ]
+type @default_additional_headers = [ string ]
 
 init(){
   super();
@@ -44,6 +45,7 @@ init(){
   'cacheConfiguration', 'dfs', 'dfsadmin', 'dfssecurity'
   ];
   @except_signed_params = ['list-type', 'regions'];
+  @default_additional_headers = ['range', 'if-modified-since'];
 }
 
 async function modifyConfiguration(context: SPI.InterceptorContext, attributeMap: SPI.AttributeMap): void {
@@ -247,6 +249,11 @@ async function getRegionIdFromEndpoint(endpoint: string) : string {
       idx = String.index(endpoint, '.aliyuncs.com');
       return String.subString(endpoint, 4, idx);
     }
+    // dual-stack / ipv6: {region}.oss.aliyuncs.com
+    if (String.hasSuffix(endpoint, '.oss.aliyuncs.com')) {
+      idx = String.index(endpoint, '.oss.aliyuncs.com');
+      return String.subString(endpoint, 0, idx);
+    }
     if (String.hasSuffix(endpoint, '.mgw.aliyuncs.com')) {
       idx = String.index(endpoint, '.mgw.aliyuncs.com');
       return String.subString(endpoint, 0, idx);
@@ -254,6 +261,14 @@ async function getRegionIdFromEndpoint(endpoint: string) : string {
     if (String.hasSuffix(endpoint, '.mgw-internal.aliyuncs.com')) {
       idx = String.index(endpoint, '.mgw-internal.aliyuncs.com');
       return String.subString(endpoint, 0, idx);
+    }
+    var endpointParts : [string] = String.split(endpoint, '.', null);
+    if (Util.equalNumber(Array.size(endpointParts), 5)
+        && String.equals(endpointParts[2], 'mgw')
+        && String.hasPrefix(endpointParts[3], 'idptcloud')
+        && String.equals(endpointParts[4], 'alibaba')) {
+      var idptRegionId = endpointParts[1];
+      return idptRegionId;
     }
     if (String.hasSuffix(endpoint, '-internal.oss-data-acc.aliyuncs.com')) {
       idx = String.index(endpoint, '-internal.oss-data-acc.aliyuncs.com');
@@ -264,7 +279,8 @@ async function getRegionIdFromEndpoint(endpoint: string) : string {
       return String.subString(endpoint, 0, idx);
     }
   }
-  return 'cn-hangzhou';
+  var defaultRegionId = 'cn-hangzhou';
+  return defaultRegionId;
 }
 
 async function getEndpoint(regionId: string, network: string, endpoint: string) : string{
@@ -278,7 +294,7 @@ async function getEndpoint(regionId: string, network: string, endpoint: string) 
     if (String.contains(network, 'internal')) {
       return `oss-${regionId}-internal.aliyuncs.com`;
     } else if (String.contains(network, 'ipv6')) {
-      return `${regionId}oss.aliyuncs.com`;
+      return `${regionId}.oss.aliyuncs.com`;
     } else if (String.contains(network, 'accelerate')) {
       return `oss-${network}.aliyuncs.com`;
     }
@@ -292,6 +308,16 @@ async function getHost(endpointType: string, bucketName: string, endpoint: strin
   }
   if (String.contains(endpoint,'.mgw-internal.aliyuncs.com') && !Util.isUnset(context.request.hostMap.userid)) {
     return `${context.request.hostMap.userid}.${endpoint}`;
+  }
+  if (!Util.empty(endpoint)) {
+    var endpointParts : [string] = String.split(endpoint, '.', null);
+    if (Util.equalNumber(Array.size(endpointParts), 5)
+        && String.equals(endpointParts[2], 'mgw')
+        && String.hasPrefix(endpointParts[3], 'idptcloud')
+        && String.equals(endpointParts[4], 'alibaba')
+        && !Util.isUnset(context.request.hostMap.userid)) {
+      return `${context.request.hostMap.userid}.${endpoint}`;
+    }
   }
   if (Util.empty(bucketName)) {
     return endpoint;
@@ -315,8 +341,13 @@ async function getAuthorization(signatureVersion: string, bucketName: string, pa
       return `OSS ${ak}:${sign}`;
     }
     if (String.equals(signatureVersion, 'v2')) {
-      sign = getSignatureV2(bucketName, pathname, method, query, headers, secret);
-      return `OSS2 AccessKeyId:${ak},Signature:${sign}`;
+      var additionalHeaderNames = getAdditionalHeaderNamesV2(headers);
+      sign = getSignatureV2(bucketName, pathname, method, query, headers, secret, additionalHeaderNames);
+      var additionalHeaders = joinSemicolon(additionalHeaderNames);
+      if (Util.empty(additionalHeaders)) {
+        return `OSS2 AccessKeyId:${ak},Signature:${sign}`;
+      }
+      return `OSS2 AccessKeyId:${ak},AdditionalHeaders:${additionalHeaders},Signature:${sign}`;
     }
   }
 
@@ -468,6 +499,116 @@ async function buildCanonicalizedHeaders(headers: map[string]string): string {
   return canonicalizedHeaders;
 }
 
-async function getSignatureV2(bucketName: string, pathname: string, method: string, query: map[string]string, headers: map[string]string, secret: string): string {
+static function v2UriEncode(value: string): string {
+  if (Util.empty(value)) {
+    return '';
+  }
+  var encoded = EncodeUtil.percentEncode(value);
+  encoded = String.replace(encoded, '+', '%20', null);
+  encoded = String.replace(encoded, '%7E', '~', null);
+  encoded = String.replace(encoded, '%2D', '-', null);
+  encoded = String.replace(encoded, '%5F', '_', null);
+  encoded = String.replace(encoded, '%2E', '.', null);
+  return encoded;
+}
+
+async function getHeaderValue(headers: map[string]string, name: string): string {
+  if (!Util.isUnset(headers[name])) {
+    return headers[name];
+  }
+  for (var header : Map.keySet(headers)) {
+    if (String.equals(String.toLower(header), name)) {
+      return headers[header];
+    }
+  }
   return '';
+}
+
+async function getAdditionalHeaderNamesV2(headers: map[string]string): [string] {
+  var additionalHeaders : map[string]string = {};
+  for (var header : Map.keySet(headers)) {
+    var lowerHeader = String.toLower(header);
+    if (Array.contains(@default_additional_headers, lowerHeader)) {
+      additionalHeaders[lowerHeader] = lowerHeader;
+    }
+  }
+  return Array.ascSort(Map.keySet(additionalHeaders));
+}
+
+async function joinSemicolon(items: [string]): string {
+  var result : string = '';
+  var separator : string = '';
+  for (var item : items) {
+    result = `${result}${separator}${item}`;
+    separator = ';';
+  }
+  return result;
+}
+
+async function buildCanonicalizedOssHeadersV2(headers: map[string]string, additionalHeaderNames: [string]): string {
+  var canonHeaders : map[string]string = {};
+  for (var header : Map.keySet(headers)) {
+    var lowerHeader = String.toLower(header);
+    if (String.hasPrefix(lowerHeader, 'x-oss-')) {
+      canonHeaders[lowerHeader] = headers[header];
+    }
+  }
+  for (var name : additionalHeaderNames) {
+    canonHeaders[name] = getHeaderValue(headers, name);
+  }
+  var canonicalizedHeaders : string = '';
+  for (var header : Array.ascSort(Map.keySet(canonHeaders))) {
+    canonicalizedHeaders = `${canonicalizedHeaders}${header}:${canonHeaders[header]}\n`;
+  }
+  return canonicalizedHeaders;
+}
+
+async function buildCanonicalizedQueryStringV2(query: map[string]string): string {
+  var queryMap : map[string]string = {};
+  if (!Util.isUnset(query)) {
+    for (var queryKey : Map.keySet(query)) {
+      var encodedKey = v2UriEncode(queryKey);
+      var encodedValue : string = '';
+      if (!Util.empty(query[queryKey])) {
+        encodedValue = v2UriEncode(query[queryKey]);
+      }
+      queryMap[encodedKey] = encodedValue;
+    }
+  }
+  if (Util.isUnset(queryMap) || Util.equalNumber(Array.size(Map.keySet(queryMap)), 0)) {
+    return '';
+  }
+  var canonicalizedQueryString : string = '?';
+  var separator : string = '';
+  for (var key : Array.ascSort(Map.keySet(queryMap))) {
+    canonicalizedQueryString = `${canonicalizedQueryString}${separator}${key}`;
+    if (!Util.empty(queryMap[key])) {
+      canonicalizedQueryString = `${canonicalizedQueryString}=${queryMap[key]}`;
+    }
+    separator = '&';
+  }
+  return canonicalizedQueryString;
+}
+
+async function buildCanonicalizedResourceV2(bucketName: string, pathname: string, query: map[string]string): string {
+  var resourcePath : string = '/';
+  if (!Util.empty(bucketName)) {
+    resourcePath = `/${bucketName}${pathname}`;
+  } else if (!Util.empty(pathname)) {
+    resourcePath = pathname;
+  }
+  var canonicalizedResource = v2UriEncode(resourcePath);
+  canonicalizedResource = `${canonicalizedResource}${buildCanonicalizedQueryStringV2(query)}`;
+  return canonicalizedResource;
+}
+
+async function getSignatureV2(bucketName: string, pathname: string, method: string, query: map[string]string, headers: map[string]string, secret: string, additionalHeaderNames: [string]): string {
+  var contentMd5 = Util.defaultString(headers['content-md5'], '');
+  var contentType = Util.defaultString(headers['content-type'], '');
+  var date = Util.defaultString(headers.date, '');
+  var canonicalizedOssHeaders = buildCanonicalizedOssHeadersV2(headers, additionalHeaderNames);
+  var additionalHeaders = joinSemicolon(additionalHeaderNames);
+  var canonicalizedResource = buildCanonicalizedResourceV2(bucketName, pathname, query);
+  var stringToSign = `${method}\n${contentMd5}\n${contentType}\n${date}\n${canonicalizedOssHeaders}${additionalHeaders}\n${canonicalizedResource}`;
+  return EncodeUtil.base64EncodeToString(SignatureUtil.HmacSHA256Sign(stringToSign, secret));
 }

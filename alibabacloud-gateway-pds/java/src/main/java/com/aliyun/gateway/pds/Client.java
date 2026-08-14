@@ -58,7 +58,10 @@ public class Client extends com.aliyun.gateway.spi.Client {
 
         }
 
+        String dateTime = "";
         if (com.aliyun.darabonbastring.Client.equals(signatureVersion, "v4")) {
+            dateTime = com.aliyun.openapiutil.Client.getTimestamp();
+            request.headers.put("x-acs-date", dateTime);
             if (com.aliyun.teautil.Common.equalString(signatureAlgorithm, "ACS4-HMAC-SM3")) {
                 request.headers.put("x-acs-content-sm3", hashedRequestPayload);
             } else {
@@ -90,17 +93,15 @@ public class Client extends com.aliyun.gateway.spi.Client {
                 if (!com.aliyun.teautil.Common.isUnset(request.headers.get("content-type"))) {
                     headers = request.headers;
                 } else if (com.aliyun.darabonbastring.Client.equals(request.reqBodyType, "formData") && com.aliyun.darabonbastring.Client.equals(request.action, "DownloadFile") && com.aliyun.darabonbastring.Client.equals(request.pathname, "/v2/file/download")) {
-                    java.util.List<String> headersArray = com.aliyun.darabonba.map.Client.keySet(request.headers);
-                    for (String key : headersArray) {
-                        headers.put(key, request.headers.get(key));
-                    }
-                    headers.put("content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+                    request.headers.put("content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+                    headers = request.headers;
                 } else {
                     headers = request.headers;
                 }
 
                 if (com.aliyun.darabonbastring.Client.equals(signatureVersion, "v4")) {
-                    String dateNew = com.aliyun.darabonbastring.Client.subString(date, 0, 10);
+                    String dateNew = com.aliyun.darabonbastring.Client.subString(dateTime, 0, 10);
+                    dateNew = com.aliyun.darabonbastring.Client.replace(dateNew, "-", "", null);
                     String region = this.getRegion(config.endpoint);
                     byte[] signingkey = this.getSigningkey(signatureAlgorithm, accessKeySecret, region, dateNew);
                     request.headers.put("Authorization", this.getAuthorizationV4(request.pathname, request.method, request.query, headers, signatureAlgorithm, hashedRequestPayload, accessKeyId, signingkey, request.productId, region, dateNew));
@@ -243,20 +244,18 @@ public class Client extends com.aliyun.gateway.spi.Client {
     public java.util.List<String> getSignedHeaders(java.util.Map<String, String> headers) throws Exception {
         java.util.List<String> headersArray = com.aliyun.darabonba.map.Client.keySet(headers);
         java.util.List<String> sortedHeadersArray = com.aliyun.darabonba.array.Client.ascSort(headersArray);
-        String tmp = "";
-        String separator = "";
+        java.util.List<String> result = new java.util.ArrayList<>();
         for (String key : sortedHeadersArray) {
             String lowerKey = com.aliyun.darabonbastring.Client.toLower(key);
             if (com.aliyun.darabonbastring.Client.hasPrefix(lowerKey, "x-acs-")) {
-                if (!com.aliyun.darabonbastring.Client.contains(tmp, lowerKey)) {
-                    tmp = "" + tmp + "" + separator + "" + lowerKey + "";
-                    separator = ";";
+                if (!com.aliyun.darabonba.array.Client.contains(result, lowerKey)) {
+                    com.aliyun.darabonba.array.Client.append(result, lowerKey);
                 }
 
             }
 
         }
-        return com.aliyun.darabonbastring.Client.split(tmp, ";", null);
+        return result;
     }
 
     public String getRegion(String endpoint) throws Exception {

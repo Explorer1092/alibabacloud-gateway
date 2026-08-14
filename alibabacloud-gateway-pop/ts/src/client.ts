@@ -324,14 +324,12 @@ export default class Client extends SPI {
     // lower header key
     let headersArray : string[] = Map.keySet(headers);
     let newHeaders : {[key: string ]: string} = { };
-    let tmp : string = "";
 
     for (let key of headersArray) {
       let lowerKey = String.toLower(key);
       let value = headers[key];
       if (!Util.isUnset(value)) {
-        if (!String.contains(tmp, lowerKey) || String.equals(lowerKey, "host")) {
-          tmp = `${tmp},${lowerKey}`;
+        if (Util.isUnset(newHeaders[lowerKey]) || String.equals(lowerKey, "host")) {
           newHeaders[lowerKey] = String.trim(value);
         } else {
           newHeaders[lowerKey] = `${newHeaders[lowerKey]},${String.trim(value)}`;
@@ -351,23 +349,29 @@ export default class Client extends SPI {
 
   getSignedHeaders(headers: {[key: string ]: string}): string[] {
     let headersArray : string[] = Map.keySet(headers);
-    let sortedHeadersArray = Array.ascSort(headersArray);
-    let tmp : string = "";
-    let separator : string = "";
+    let newHeadersArray : string[] = [ ];
+
+    for (let key of headersArray) {
+      let lowerKey = String.toLower(key);
+      let value = headers[key];
+      if (!Util.isUnset(value)) {
+        Array.append(newHeadersArray, lowerKey);
+      }
+
+    }
+    let sortedHeadersArray = Array.ascSort(newHeadersArray);
+    let result : string[] = [ ];
 
     for (let key of sortedHeadersArray) {
-      let lowerKey = String.toLower(key);
-      if (String.hasPrefix(lowerKey, "x-acs-") || String.equals(lowerKey, "host") || String.equals(lowerKey, "content-type")) {
-        let value = headers[key];
-        if (!Util.isUnset(value) && !String.contains(tmp, lowerKey)) {
-          tmp = `${tmp}${separator}${lowerKey}`;
-          separator = ";";
+      if (String.hasPrefix(key, "x-acs-") || String.equals(key, "host") || String.equals(key, "content-type")) {
+        if (!Array.contains(result, key)) {
+          Array.append(result, key);
         }
 
       }
 
     }
-    return String.split(tmp, ";", null);
+    return result;
   }
 
 }

@@ -78,7 +78,10 @@ class Client extends DarabonbaGatewaySpiClient
                 }
             }
         }
+        $dateTime = "";
         if (StringUtil::equals($signatureVersion, "v4")) {
+            $dateTime = OpenApiUtilClient::getTimestamp();
+            $request->headers["x-acs-date"] = $dateTime;
             if (Utils::equalString($signatureAlgorithm, "ACS4-HMAC-SM3")) {
                 $request->headers["x-acs-content-sm3"] = $hashedRequestPayload;
             } else {
@@ -107,16 +110,14 @@ class Client extends DarabonbaGatewaySpiClient
                 if (!Utils::isUnset(@$request->headers["content-type"])) {
                     $headers = $request->headers;
                 } else if (StringUtil::equals($request->reqBodyType, "formData") && StringUtil::equals($request->action, "DownloadFile") && StringUtil::equals($request->pathname, "/v2/file/download")) {
-                    $headersArray = MapUtil::keySet($request->headers);
-                    foreach ($headersArray as $key) {
-                        $headers[$key] = @$request->headers[$key];
-                    }
-                    @$headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+                    @$request->headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+                    $headers = $request->headers;
                 } else {
                     $headers = $request->headers;
                 }
                 if (StringUtil::equals($signatureVersion, "v4")) {
-                    $dateNew = StringUtil::subString($date, 0, 10);
+                    $dateNew = StringUtil::subString($dateTime, 0, 10);
+                    $dateNew = StringUtil::replace($dateNew, "-", "", null);
                     $region = $this->getRegion($config->endpoint);
                     $signingkey = $this->getSigningkey($signatureAlgorithm, $accessKeySecret, $region, $dateNew);
                     $request->headers["Authorization"] = $this->getAuthorizationV4($request->pathname, $request->method, $request->query, $headers, $signatureAlgorithm, $hashedRequestPayload, $accessKeyId, $signingkey, $request->productId, $region, $dateNew);
@@ -298,18 +299,16 @@ class Client extends DarabonbaGatewaySpiClient
     {
         $headersArray = MapUtil::keySet($headers);
         $sortedHeadersArray = ArrayUtil::ascSort($headersArray);
-        $tmp = "";
-        $separator = "";
+        $result = [];
         foreach ($sortedHeadersArray as $key) {
             $lowerKey = StringUtil::toLower($key);
             if (StringUtil::hasPrefix($lowerKey, "x-acs-")) {
-                if (!StringUtil::contains($tmp, $lowerKey)) {
-                    $tmp = "" . $tmp . "" . $separator . "" . $lowerKey . "";
-                    $separator = ";";
+                if (!ArrayUtil::contains($result, $lowerKey)) {
+                    ArrayUtil::append($result, $lowerKey);
                 }
             }
         }
-        return StringUtil::split($tmp, ";", null);
+        return $result;
     }
 
     /**

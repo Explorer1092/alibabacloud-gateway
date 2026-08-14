@@ -420,13 +420,11 @@ func (client *Client) BuildCanonicalizedHeaders(headers map[string]*string) (_re
 	// lower header key
 	headersArray := map_.KeySet(headers)
 	newHeaders := make(map[string]*string)
-	tmp := tea.String("")
 	for _, key := range headersArray {
 		lowerKey := string_.ToLower(key)
 		value := headers[tea.StringValue(key)]
 		if !tea.BoolValue(util.IsUnset(value)) {
-			if !tea.BoolValue(string_.Contains(tmp, lowerKey)) || tea.BoolValue(string_.Equals(lowerKey, tea.String("host"))) {
-				tmp = tea.String(tea.StringValue(tmp) + "," + tea.StringValue(lowerKey))
+			if tea.BoolValue(util.IsUnset(newHeaders[tea.StringValue(lowerKey)])) || tea.BoolValue(string_.Equals(lowerKey, tea.String("host"))) {
 				newHeaders[tea.StringValue(lowerKey)] = string_.Trim(value)
 			} else {
 				newHeaders[tea.StringValue(lowerKey)] = tea.String(tea.StringValue(newHeaders[tea.StringValue(lowerKey)]) + "," + tea.StringValue(string_.Trim(value)))
@@ -446,23 +444,26 @@ func (client *Client) BuildCanonicalizedHeaders(headers map[string]*string) (_re
 
 func (client *Client) GetSignedHeaders(headers map[string]*string) (_result []*string) {
 	headersArray := map_.KeySet(headers)
-	sortedHeadersArray := array.AscSort(headersArray)
-	tmp := tea.String("")
-	separator := tea.String("")
-	for _, key := range sortedHeadersArray {
+	newHeadersArray := []*string{}
+	for _, key := range headersArray {
 		lowerKey := string_.ToLower(key)
-		if tea.BoolValue(string_.HasPrefix(lowerKey, tea.String("x-acs-"))) || tea.BoolValue(string_.Equals(lowerKey, tea.String("host"))) || tea.BoolValue(string_.Equals(lowerKey, tea.String("content-type"))) {
-			value := headers[tea.StringValue(key)]
-			if !tea.BoolValue(util.IsUnset(value)) && !tea.BoolValue(string_.Contains(tmp, lowerKey)) {
-				tmp = tea.String(tea.StringValue(tmp) + tea.StringValue(separator) + tea.StringValue(lowerKey))
-				separator = tea.String(";")
+		value := headers[tea.StringValue(key)]
+		if !tea.BoolValue(util.IsUnset(value)) {
+			newHeadersArray = append(newHeadersArray, lowerKey)
+		}
+
+	}
+	sortedHeadersArray := array.AscSort(newHeadersArray)
+	result := []*string{}
+	for _, key := range sortedHeadersArray {
+		if tea.BoolValue(string_.HasPrefix(key, tea.String("x-acs-"))) || tea.BoolValue(string_.Equals(key, tea.String("host"))) || tea.BoolValue(string_.Equals(key, tea.String("content-type"))) {
+			if !tea.BoolValue(array.Contains(result, key)) {
+				result = append(result, key)
 			}
 
 		}
 
 	}
-	_result = make([]*string, 0)
-	_body := string_.Split(tmp, tea.String(";"), nil)
-	_result = _body
+	_result = result
 	return _result
 }

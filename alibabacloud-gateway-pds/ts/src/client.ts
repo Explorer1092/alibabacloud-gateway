@@ -64,7 +64,10 @@ export default class Client extends SPI {
 
     }
 
+    let dateTime = "";
     if (String.equals(signatureVersion, "v4")) {
+      dateTime = OpenApiUtil.getTimestamp();
+      request.headers["x-acs-date"] = dateTime;
       if (Util.equalString(signatureAlgorithm, "ACS4-HMAC-SM3")) {
         request.headers["x-acs-content-sm3"] = hashedRequestPayload;
       } else {
@@ -96,18 +99,15 @@ export default class Client extends SPI {
         if (!Util.isUnset(request.headers["content-type"])) {
           headers = request.headers;
         } else if (String.equals(request.reqBodyType, "formData") && String.equals(request.action, "DownloadFile") && String.equals(request.pathname, "/v2/file/download")) {
-          let headersArray: string[] = Map.keySet(request.headers);
-
-          for (let key of headersArray) {
-            headers[key] = request.headers[key];
-          }
-          headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+          request.headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+          headers = request.headers;
         } else {
           headers = request.headers;
         }
 
         if (String.equals(signatureVersion, "v4")) {
-          let dateNew = String.subString(date, 0, 10);
+          let dateNew = String.subString(dateTime, 0, 10);
+          dateNew = String.replace(dateNew, "-", "", null);
           let region = this.getRegion(config.endpoint);
           let signingkey = await this.getSigningkey(signatureAlgorithm, accessKeySecret, region, dateNew);
           request.headers["Authorization"] = await this.getAuthorizationV4(request.pathname, request.method, request.query, headers, signatureAlgorithm, hashedRequestPayload, accessKeyId, signingkey, request.productId, region, dateNew);
@@ -252,21 +252,19 @@ export default class Client extends SPI {
   async getSignedHeaders(headers: { [key: string]: string }): Promise<string[]> {
     let headersArray: string[] = Map.keySet(headers);
     let sortedHeadersArray = Array.ascSort(headersArray);
-    let tmp: string = "";
-    let separator: string = "";
+    let result: string[] = [];
 
     for (let key of sortedHeadersArray) {
       let lowerKey = String.toLower(key);
       if (String.hasPrefix(lowerKey, "x-acs-")) {
-        if (!String.contains(tmp, lowerKey)) {
-          tmp = `${tmp}${separator}${lowerKey}`;
-          separator = ";";
+        if (!Array.contains(result, lowerKey)) {
+          Array.append(result, lowerKey);
         }
 
       }
 
     }
-    return String.split(tmp, ";", null);
+    return result;
   }
 
   getRegion(endpoint: string): string {

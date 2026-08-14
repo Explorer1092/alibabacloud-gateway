@@ -5,7 +5,7 @@ import lz4.block
 import zlib
 import zstd
 import io
-from .log_group_serializer import serialize_log_group_to_pb
+from .log_group_serializer import serialize_log_group_to_pb, deserialize_log_group_list_from_pb
 
 # for compressor
 supported_compress_types = ['lz4', 'zstd', 'gzip', 'deflate']
@@ -107,7 +107,7 @@ class Client:
         compress_type: str,
         body_raw_size: str,
     ) -> BinaryIO:
-        raise Exception('Un-implemented')
+        return Client.read_and_uncompress_block(stream, compress_type, body_raw_size)
 
     @staticmethod
     def compress(
@@ -141,7 +141,7 @@ class Client:
         @return: the compressed data
         @throws error if the compress type is not supported or the compress failed
         """
-        raise Exception('Un-implemented')
+        return Client.compress(src, compress_type)
 
     @staticmethod
     def is_compressor_available(
@@ -153,7 +153,7 @@ class Client:
     async def is_compressor_available_async(
         compress_type: str,
     ) -> bool:
-        raise Exception('Un-implemented')
+        return compress_type in supported_compress_types
 
     @staticmethod
     def is_decompressor_available(
@@ -165,7 +165,7 @@ class Client:
     async def is_decompressor_available_async(
         compress_type: str,
     ) -> bool:
-        raise Exception('Un-implemented')
+        return compress_type in supported_decompress_types
 
     @staticmethod
     def bytes_length(
@@ -190,3 +190,15 @@ class Client:
         log_group: Any,
     ) -> bytes:
         return serialize_log_group_to_pb(log_group)
+
+    @staticmethod
+    def deserialize_log_group_list_from_pb(
+        data: bytes,
+    ) -> Any:
+        return deserialize_log_group_list_from_pb(data)
+
+    @staticmethod
+    async def deserialize_log_group_list_from_pb_async(
+        data: bytes,
+    ) -> Any:
+        return deserialize_log_group_list_from_pb(data)

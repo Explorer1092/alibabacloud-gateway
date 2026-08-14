@@ -2,6 +2,7 @@
 
 namespace Darabonba\GatewayPop\Tests;
 
+use AlibabaCloud\Darabonba\ArrayUtil\ArrayUtil;
 use Darabonba\GatewayPop\Client;
 use PHPUnit\Framework\TestCase;
 
@@ -34,6 +35,78 @@ final class UnitTest extends TestCase
         $this->assertEquals("cn-hangzhou", $client->getRegion("test", "test-proxy.cn-hangzhou.aliyuncs.com", null));
         $this->assertEquals("cn-hangzhou-acdr-ut-1", $client->getRegion("test", "test-inner.cn-hangzhou-acdr-ut-1.aliyuncs.com", null));
         $this->assertEquals("cn-edge-1", $client->getRegion("test", "test-inner.cn-edge-1.aliyuncs.com", null));
+    }
+
+    public function testGetSignedHeaders()
+    {
+        $client = new Client();
+
+        // 测试空headers
+        $emptyHeaders = [];
+        $result = $client->getSignedHeaders($emptyHeaders);
+        $this->assertEmpty($result);
+
+        // 测试只包含需要签名的headers
+        $headers = [
+            "host" => "example.com",
+            "content-type" => "application/json",
+            "x-acs-action" => "TestAction"
+        ];
+        $result = $client->getSignedHeaders($headers);
+        $this->assertCount(3, $result);
+        $this->assertEquals("content-type", $result[0]);
+        $this->assertEquals("host", $result[1]);
+        $this->assertEquals("x-acs-action", $result[2]);
+
+        // 测试包含不需要签名的headers
+        $headersWithIgnore = [
+            "host" => "example.com",
+            "content-type" => "application/json",
+            "x-acs-action" => "TestAction",
+            "authorization" => "Bearer token",
+            "user-agent" => "PHP-client"
+        ];
+        $result = $client->getSignedHeaders($headersWithIgnore);
+        $this->assertCount(3, $result);
+        $this->assertEquals("content-type", $result[0]);
+        $this->assertEquals("host", $result[1]);
+        $this->assertEquals("x-acs-action", $result[2]);
+
+        // 测试空值header
+        $headersWithEmpty = [
+            "host" => "example.com",
+            "content-type" => null,
+            "x-acs-action" => "TestAction"
+        ];
+        $result = $client->getSignedHeaders($headersWithEmpty);
+        $this->assertCount(2, $result);
+        $this->assertEquals("host", $result[0]);
+        $this->assertEquals("x-acs-action", $result[1]);
+
+        // 测试大小写不敏感
+        $headersWithCase = [
+            "HOST" => "example.com",
+            "Content-Type" => "application/json",
+            "X-Acs-Action" => "TestAction"
+        ];
+        $result = $client->getSignedHeaders($headersWithCase);
+        $this->assertCount(3, $result);
+        $this->assertEquals("content-type", $result[0]);
+        $this->assertEquals("host", $result[1]);
+        $this->assertEquals("x-acs-action", $result[2]);
+
+        // Prefix pairs must not be mis-deduped via substring contains
+        $prefixHeaders = [
+            "host" => "example.com",
+            "x-acs-foobar" => "1",
+            "x-acs-foo" => "2"
+        ];
+        $this->assertFalse(ArrayUtil::contains(["x-acs-foobar"], "x-acs-foo"));
+        $result = $client->getSignedHeaders($prefixHeaders);
+        $this->assertCount(3, $result);
+        $this->assertEquals("host", $result[0]);
+        $this->assertEquals("x-acs-foo", $result[1]);
+        $this->assertEquals("x-acs-foobar", $result[2]);
     }
 
 }

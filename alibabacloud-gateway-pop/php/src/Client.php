@@ -393,13 +393,11 @@ class Client extends DarabonbaGatewaySpiClient
         // lower header key
         $headersArray = MapUtil::keySet($headers);
         $newHeaders = [];
-        $tmp = "";
         foreach ($headersArray as $key) {
             $lowerKey = StringUtil::toLower($key);
             $value = @$headers[$key];
             if (!Utils::isUnset($value)) {
-                if (!StringUtil::contains($tmp, $lowerKey) || StringUtil::equals($lowerKey, "host")) {
-                    $tmp = "" . $tmp . "," . $lowerKey . "";
+                if (Utils::isUnset(@$newHeaders[$lowerKey]) || StringUtil::equals($lowerKey, "host")) {
                     $newHeaders[$lowerKey] = StringUtil::trim($value);
                 } else {
                     $newHeaders[$lowerKey] = "" . @$newHeaders[$lowerKey] . "," . StringUtil::trim($value) . "";
@@ -421,19 +419,23 @@ class Client extends DarabonbaGatewaySpiClient
     public function getSignedHeaders($headers)
     {
         $headersArray = MapUtil::keySet($headers);
-        $sortedHeadersArray = ArrayUtil::ascSort($headersArray);
-        $tmp = "";
-        $separator = "";
-        foreach ($sortedHeadersArray as $key) {
+        $newHeadersArray = [];
+        foreach ($headersArray as $key) {
             $lowerKey = StringUtil::toLower($key);
-            if (StringUtil::hasPrefix($lowerKey, "x-acs-") || StringUtil::equals($lowerKey, "host") || StringUtil::equals($lowerKey, "content-type")) {
-                $value = @$headers[$key];
-                if (!Utils::isUnset($value) && !StringUtil::contains($tmp, $lowerKey)) {
-                    $tmp = "" . $tmp . "" . $separator . "" . $lowerKey . "";
-                    $separator = ";";
+            $value = @$headers[$key];
+            if (!Utils::isUnset($value)) {
+                ArrayUtil::append($newHeadersArray, $lowerKey);
+            }
+        }
+        $sortedHeadersArray = ArrayUtil::ascSort($newHeadersArray);
+        $result = [];
+        foreach ($sortedHeadersArray as $key) {
+            if (StringUtil::hasPrefix($key, "x-acs-") || StringUtil::equals($key, "host") || StringUtil::equals($key, "content-type")) {
+                if (!ArrayUtil::contains($result, $key)) {
+                    ArrayUtil::append($result, $key);
                 }
             }
         }
-        return StringUtil::split($tmp, ";", null);
+        return $result;
     }
 }

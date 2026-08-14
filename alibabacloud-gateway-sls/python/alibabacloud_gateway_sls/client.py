@@ -97,6 +97,9 @@ class Client(SPIClient):
             elif StringClient.equals(request.req_body_type, 'binary'):
                 # content-type: application/octet-stream
                 body_bytes = UtilClient.assert_as_bytes(request.body)
+        # ensure content-type is set, to get rid of aio-http auto-added header
+        if request.headers.get('content-type') is None:
+            request.headers['content-type'] = 'application/json'
         # get body raw size
         body_raw_size = '0'
         raw_size_ref = request.headers.get('x-log-bodyrawsize')
@@ -120,6 +123,8 @@ class Client(SPIClient):
             'x-log-apiversion': '0.6.0'
         }, request.headers)
         request.headers['x-log-bodyrawsize'] = body_raw_size
+        if StringClient.equals(request.action, 'PullLogs'):
+            request.headers['accept'] = 'application/x-protobuf'
         self.set_default_accept_encoding(request.action, request.headers)
         self.build_request(context)
         # move param in path to query
@@ -172,6 +177,9 @@ class Client(SPIClient):
             elif StringClient.equals(request.req_body_type, 'binary'):
                 # content-type: application/octet-stream
                 body_bytes = UtilClient.assert_as_bytes(request.body)
+        # ensure content-type is set, to get rid of aio-http auto-added header
+        if request.headers.get('content-type') is None:
+            request.headers['content-type'] = 'application/json'
         # get body raw size
         body_raw_size = '0'
         raw_size_ref = request.headers.get('x-log-bodyrawsize')
@@ -195,6 +203,8 @@ class Client(SPIClient):
             'x-log-apiversion': '0.6.0'
         }, request.headers)
         request.headers['x-log-bodyrawsize'] = body_raw_size
+        if StringClient.equals(request.action, 'PullLogs'):
+            request.headers['accept'] = 'application/x-protobuf'
         await self.set_default_accept_encoding_async(request.action, request.headers)
         await self.build_request_async(context)
         # move param in path to query
@@ -342,7 +352,10 @@ class Client(SPIClient):
             uncompressed_data = response.body
             if not UtilClient.is_unset(bodyraw_size) and not UtilClient.is_unset(compress_type):
                 uncompressed_data = SLS_UtilClient.read_and_uncompress_block(response.body, compress_type, bodyraw_size)
-            if UtilClient.equal_string(request.body_type, 'binary'):
+            if StringClient.equals(request.action, 'PullLogs'):
+                body_bytes = UtilClient.read_as_bytes(uncompressed_data)
+                response.deserialized_body = SLS_UtilClient.deserialize_log_group_list_from_pb(body_bytes)
+            elif UtilClient.equal_string(request.body_type, 'binary'):
                 response.deserialized_body = uncompressed_data
             elif UtilClient.equal_string(request.body_type, 'byte'):
                 byt = UtilClient.read_as_bytes(uncompressed_data)
@@ -384,7 +397,10 @@ class Client(SPIClient):
             uncompressed_data = response.body
             if not UtilClient.is_unset(bodyraw_size) and not UtilClient.is_unset(compress_type):
                 uncompressed_data = await SLS_UtilClient.read_and_uncompress_block_async(response.body, compress_type, bodyraw_size)
-            if UtilClient.equal_string(request.body_type, 'binary'):
+            if StringClient.equals(request.action, 'PullLogs'):
+                body_bytes = await UtilClient.read_as_bytes_async(uncompressed_data)
+                response.deserialized_body = await SLS_UtilClient.deserialize_log_group_list_from_pb_async(body_bytes)
+            elif UtilClient.equal_string(request.body_type, 'binary'):
                 response.deserialized_body = uncompressed_data
             elif UtilClient.equal_string(request.body_type, 'byte'):
                 byt = await UtilClient.read_as_bytes_async(uncompressed_data)

@@ -82,8 +82,11 @@ namespace AlibabaCloud.GatewayPds
                     }
                 }
             }
+            string dateTime = "";
             if (AlibabaCloud.DarabonbaString.StringUtil.Equals(signatureVersion, "v4"))
             {
+                dateTime = AlibabaCloud.OpenApiUtil.Client.GetTimestamp();
+                request.Headers["x-acs-date"] = dateTime;
                 if (AlibabaCloud.TeaUtil.Common.EqualString(signatureAlgorithm, "ACS4-HMAC-SM3"))
                 {
                     request.Headers["x-acs-content-sm3"] = hashedRequestPayload;
@@ -125,12 +128,8 @@ namespace AlibabaCloud.GatewayPds
                     }
                     else if (AlibabaCloud.DarabonbaString.StringUtil.Equals(request.ReqBodyType, "formData") && AlibabaCloud.DarabonbaString.StringUtil.Equals(request.Action, "DownloadFile") && AlibabaCloud.DarabonbaString.StringUtil.Equals(request.Pathname, "/v2/file/download"))
                     {
-                        List<string> headersArray = AlibabaCloud.DarabonbaMap.MapUtil.KeySet(request.Headers);
-
-                        foreach (var key in headersArray) {
-                            headers[key] = request.Headers.Get(key);
-                        }
-                        headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+                        request.Headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+                        headers = request.Headers;
                     }
                     else
                     {
@@ -138,7 +137,8 @@ namespace AlibabaCloud.GatewayPds
                     }
                     if (AlibabaCloud.DarabonbaString.StringUtil.Equals(signatureVersion, "v4"))
                     {
-                        string dateNew = AlibabaCloud.DarabonbaString.StringUtil.SubString(date, 0, 10);
+                        string dateNew = AlibabaCloud.DarabonbaString.StringUtil.SubString(dateTime, 0, 10);
+                        dateNew = AlibabaCloud.DarabonbaString.StringUtil.Replace(dateNew, "-", "", null);
                         string region = GetRegion(config.Endpoint);
                         byte[] signingkey = GetSigningkey(signatureAlgorithm, accessKeySecret, region, dateNew);
                         request.Headers["Authorization"] = GetAuthorizationV4(request.Pathname, request.Method, request.Query, headers, signatureAlgorithm, hashedRequestPayload, accessKeyId, signingkey, request.ProductId, region, dateNew);
@@ -201,8 +201,11 @@ namespace AlibabaCloud.GatewayPds
                     }
                 }
             }
+            string dateTime = "";
             if (AlibabaCloud.DarabonbaString.StringUtil.Equals(signatureVersion, "v4"))
             {
+                dateTime = AlibabaCloud.OpenApiUtil.Client.GetTimestamp();
+                request.Headers["x-acs-date"] = dateTime;
                 if (AlibabaCloud.TeaUtil.Common.EqualString(signatureAlgorithm, "ACS4-HMAC-SM3"))
                 {
                     request.Headers["x-acs-content-sm3"] = hashedRequestPayload;
@@ -244,12 +247,8 @@ namespace AlibabaCloud.GatewayPds
                     }
                     else if (AlibabaCloud.DarabonbaString.StringUtil.Equals(request.ReqBodyType, "formData") && AlibabaCloud.DarabonbaString.StringUtil.Equals(request.Action, "DownloadFile") && AlibabaCloud.DarabonbaString.StringUtil.Equals(request.Pathname, "/v2/file/download"))
                     {
-                        List<string> headersArray = AlibabaCloud.DarabonbaMap.MapUtil.KeySet(request.Headers);
-
-                        foreach (var key in headersArray) {
-                            headers[key] = request.Headers.Get(key);
-                        }
-                        headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+                        request.Headers["content-type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+                        headers = request.Headers;
                     }
                     else
                     {
@@ -257,7 +256,8 @@ namespace AlibabaCloud.GatewayPds
                     }
                     if (AlibabaCloud.DarabonbaString.StringUtil.Equals(signatureVersion, "v4"))
                     {
-                        string dateNew = AlibabaCloud.DarabonbaString.StringUtil.SubString(date, 0, 10);
+                        string dateNew = AlibabaCloud.DarabonbaString.StringUtil.SubString(dateTime, 0, 10);
+                        dateNew = AlibabaCloud.DarabonbaString.StringUtil.Replace(dateNew, "-", "", null);
                         string region = GetRegion(config.Endpoint);
                         byte[] signingkey = await GetSigningkeyAsync(signatureAlgorithm, accessKeySecret, region, dateNew);
                         request.Headers["Authorization"] = await GetAuthorizationV4Async(request.Pathname, request.Method, request.Query, headers, signatureAlgorithm, hashedRequestPayload, accessKeyId, signingkey, request.ProductId, region, dateNew);
@@ -561,42 +561,42 @@ namespace AlibabaCloud.GatewayPds
         {
             List<string> headersArray = AlibabaCloud.DarabonbaMap.MapUtil.KeySet(headers);
             List<string> sortedHeadersArray = AlibabaCloud.DarabonbaArray.ArrayUtil.AscSort(headersArray);
-            string tmp = "";
-            string separator = "";
+            List<string> result = new List<string>
+            {
+            };
 
             foreach (var key in sortedHeadersArray) {
                 string lowerKey = AlibabaCloud.DarabonbaString.StringUtil.ToLower(key);
                 if (AlibabaCloud.DarabonbaString.StringUtil.HasPrefix(lowerKey, "x-acs-"))
                 {
-                    if (!AlibabaCloud.DarabonbaString.StringUtil.Contains(tmp, lowerKey))
+                    if (!AlibabaCloud.DarabonbaArray.ArrayUtil.Contains(result, lowerKey))
                     {
-                        tmp = "" + tmp + separator + lowerKey;
-                        separator = ";";
+                        AlibabaCloud.DarabonbaArray.ArrayUtil.Append(result, lowerKey);
                     }
                 }
             }
-            return AlibabaCloud.DarabonbaString.StringUtil.Split(tmp, ";", null);
+            return result;
         }
 
         public async Task<List<string>> GetSignedHeadersAsync(Dictionary<string, string> headers)
         {
             List<string> headersArray = AlibabaCloud.DarabonbaMap.MapUtil.KeySet(headers);
             List<string> sortedHeadersArray = AlibabaCloud.DarabonbaArray.ArrayUtil.AscSort(headersArray);
-            string tmp = "";
-            string separator = "";
+            List<string> result = new List<string>
+            {
+            };
 
             foreach (var key in sortedHeadersArray) {
                 string lowerKey = AlibabaCloud.DarabonbaString.StringUtil.ToLower(key);
                 if (AlibabaCloud.DarabonbaString.StringUtil.HasPrefix(lowerKey, "x-acs-"))
                 {
-                    if (!AlibabaCloud.DarabonbaString.StringUtil.Contains(tmp, lowerKey))
+                    if (!AlibabaCloud.DarabonbaArray.ArrayUtil.Contains(result, lowerKey))
                     {
-                        tmp = "" + tmp + separator + lowerKey;
-                        separator = ";";
+                        AlibabaCloud.DarabonbaArray.ArrayUtil.Append(result, lowerKey);
                     }
                 }
             }
-            return AlibabaCloud.DarabonbaString.StringUtil.Split(tmp, ";", null);
+            return result;
         }
 
         public string GetRegion(string endpoint)

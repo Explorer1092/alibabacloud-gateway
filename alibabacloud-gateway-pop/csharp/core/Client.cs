@@ -575,16 +575,13 @@ namespace AlibabaCloud.GatewayPop
             // lower header key
             List<string> headersArray = AlibabaCloud.DarabonbaMap.MapUtil.KeySet(headers);
             Dictionary<string, string> newHeaders = new Dictionary<string, string>(){};
-            string tmp = "";
-
             foreach (var key in headersArray) {
                 string lowerKey = AlibabaCloud.DarabonbaString.StringUtil.ToLower(key);
                 string value = headers.Get(key);
                 if (!AlibabaCloud.TeaUtil.Common.IsUnset(value))
                 {
-                    if (!AlibabaCloud.DarabonbaString.StringUtil.Contains(tmp, lowerKey) || AlibabaCloud.DarabonbaString.StringUtil.Equals(lowerKey, "host"))
+                    if (AlibabaCloud.TeaUtil.Common.IsUnset(newHeaders.Get(lowerKey)) || AlibabaCloud.DarabonbaString.StringUtil.Equals(lowerKey, "host"))
                     {
-                        tmp = "" + tmp + "," + lowerKey;
                         newHeaders[lowerKey] = AlibabaCloud.DarabonbaString.StringUtil.Trim(value);
                     }
                     else
@@ -605,23 +602,33 @@ namespace AlibabaCloud.GatewayPop
         public List<string> GetSignedHeaders(Dictionary<string, string> headers)
         {
             List<string> headersArray = AlibabaCloud.DarabonbaMap.MapUtil.KeySet(headers);
-            List<string> sortedHeadersArray = AlibabaCloud.DarabonbaArray.ArrayUtil.AscSort(headersArray);
-            string tmp = "";
-            string separator = "";
+            List<string> newHeadersArray = new List<string>
+            {
+            };
+
+            foreach (var key in headersArray) {
+                string lowerKey = AlibabaCloud.DarabonbaString.StringUtil.ToLower(key);
+                string value = headers.Get(key);
+                if (!AlibabaCloud.TeaUtil.Common.IsUnset(value))
+                {
+                    AlibabaCloud.DarabonbaArray.ArrayUtil.Append(newHeadersArray, lowerKey);
+                }
+            }
+            List<string> sortedHeadersArray = AlibabaCloud.DarabonbaArray.ArrayUtil.AscSort(newHeadersArray);
+            List<string> result = new List<string>
+            {
+            };
 
             foreach (var key in sortedHeadersArray) {
-                string lowerKey = AlibabaCloud.DarabonbaString.StringUtil.ToLower(key);
-                if (AlibabaCloud.DarabonbaString.StringUtil.HasPrefix(lowerKey, "x-acs-") || AlibabaCloud.DarabonbaString.StringUtil.Equals(lowerKey, "host") || AlibabaCloud.DarabonbaString.StringUtil.Equals(lowerKey, "content-type"))
+                if (AlibabaCloud.DarabonbaString.StringUtil.HasPrefix(key, "x-acs-") || AlibabaCloud.DarabonbaString.StringUtil.Equals(key, "host") || AlibabaCloud.DarabonbaString.StringUtil.Equals(key, "content-type"))
                 {
-                    string value = headers.Get(key);
-                    if (!AlibabaCloud.TeaUtil.Common.IsUnset(value) && !AlibabaCloud.DarabonbaString.StringUtil.Contains(tmp, lowerKey))
+                    if (!AlibabaCloud.DarabonbaArray.ArrayUtil.Contains(result, key))
                     {
-                        tmp = "" + tmp + separator + lowerKey;
-                        separator = ";";
+                        AlibabaCloud.DarabonbaArray.ArrayUtil.Append(result, key);
                     }
                 }
             }
-            return AlibabaCloud.DarabonbaString.StringUtil.Split(tmp, ";", null);
+            return result;
         }
 
     }

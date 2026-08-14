@@ -1,0 +1,194 @@
+package com.aliyun.gateway.oss;
+
+import com.aliyun.gateway.spi.models.InterceptorContext;
+import java.util.HashMap;
+import java.util.Map;
+import org.junit.Assert;
+import org.junit.Test;
+
+public class UnitTest {
+
+    @Test
+    public void getEndpointTest() throws Exception {
+        Client client = new Client();
+
+        Assert.assertEquals("custom.endpoint.com",
+            client.getEndpoint("cn-hangzhou", null, "custom.endpoint.com"));
+        Assert.assertEquals("custom.endpoint.com",
+            client.getEndpoint("cn-hangzhou", "ipv6", "custom.endpoint.com"));
+
+        Assert.assertEquals("oss-cn-shanghai.aliyuncs.com",
+            client.getEndpoint("cn-shanghai", null, null));
+        Assert.assertEquals("oss-cn-hangzhou.aliyuncs.com",
+            client.getEndpoint(null, null, null));
+        Assert.assertEquals("oss-cn-hangzhou.aliyuncs.com",
+            client.getEndpoint("", "", ""));
+
+        Assert.assertEquals("oss-cn-hangzhou-internal.aliyuncs.com",
+            client.getEndpoint("cn-hangzhou", "internal", null));
+        Assert.assertEquals("oss-cn-beijing-internal.aliyuncs.com",
+            client.getEndpoint("cn-beijing", "vpc-internal", null));
+
+        Assert.assertEquals("cn-hangzhou.oss.aliyuncs.com",
+            client.getEndpoint("cn-hangzhou", "ipv6", null));
+        Assert.assertEquals("cn-shanghai.oss.aliyuncs.com",
+            client.getEndpoint("cn-shanghai", "dualstack-ipv6", null));
+        Assert.assertEquals("cn-hangzhou.oss.aliyuncs.com",
+            client.getEndpoint(null, "ipv6", null));
+
+        Assert.assertEquals("oss-accelerate.aliyuncs.com",
+            client.getEndpoint("cn-hangzhou", "accelerate", null));
+        Assert.assertEquals("oss-accelerate-overseas.aliyuncs.com",
+            client.getEndpoint("ap-southeast-1", "accelerate-overseas", null));
+    }
+
+    @Test
+    public void getSignatureV2Test() throws Exception {
+        Client client = new Client();
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("content-md5", "FxqG8Ca0qEJPOghSihJ8Ew==");
+        headers.put("content-type", "text/plain");
+        headers.put("date", "Wed, 15 Feb 2017 09:37:11 GMT");
+        headers.put("x-oss-object-acl", "private");
+
+        String signature = client.getSignatureV2(
+            "oss-example",
+            "/nelson",
+            "PUT",
+            new HashMap<String, String>(),
+            headers,
+            "OtxrzxIsfpFjA7SwPzILwy8Bw21TLhquhboDYROV",
+            client.getAdditionalHeaderNamesV2(headers));
+
+        Assert.assertEquals("5Am2ewK1tL0gXX7GV6dwybZtj7efOEtc0Mo2FR6CkM8=", signature);
+    }
+
+    @Test
+    public void getAuthorizationV2Test() throws Exception {
+        Client client = new Client();
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("content-md5", "FxqG8Ca0qEJPOghSihJ8Ew==");
+        headers.put("content-type", "text/plain");
+        headers.put("date", "Wed, 15 Feb 2017 09:37:11 GMT");
+        headers.put("x-oss-object-acl", "private");
+
+        String authorization = client.getAuthorization(
+            "v2",
+            "oss-example",
+            "/nelson",
+            "PUT",
+            new HashMap<String, String>(),
+            headers,
+            "44CF9590006BF252F707",
+            "OtxrzxIsfpFjA7SwPzILwy8Bw21TLhquhboDYROV",
+            "cn-hangzhou");
+
+        Assert.assertEquals(
+            "OSS2 AccessKeyId:44CF9590006BF252F707,Signature:5Am2ewK1tL0gXX7GV6dwybZtj7efOEtc0Mo2FR6CkM8=",
+            authorization);
+    }
+
+    @Test
+    public void getAuthorizationV2WithAdditionalHeadersTest() throws Exception {
+        Client client = new Client();
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("content-md5", "FxqG8Ca0qEJPOghSihJ8Ew==");
+        headers.put("content-type", "text/plain");
+        headers.put("date", "Wed, 15 Feb 2017 09:37:11 GMT");
+        headers.put("x-oss-object-acl", "private");
+        headers.put("Range", "bytes=0-9");
+
+        String authorization = client.getAuthorization(
+            "v2",
+            "oss-example",
+            "/nelson",
+            "PUT",
+            new HashMap<String, String>(),
+            headers,
+            "44CF9590006BF252F707",
+            "OtxrzxIsfpFjA7SwPzILwy8Bw21TLhquhboDYROV",
+            "cn-hangzhou");
+
+        Assert.assertTrue(authorization.startsWith("OSS2 AccessKeyId:44CF9590006BF252F707,AdditionalHeaders:range,Signature:"));
+        Assert.assertFalse(authorization.endsWith("Signature:"));
+    }
+
+    @Test
+    public void v2UriEncodeTest() throws Exception {
+        Assert.assertEquals("%2Foss-example%2Fnelson", Client.v2UriEncode("/oss-example/nelson"));
+    }
+
+    @Test
+    public void buildCanonicalizedQueryStringV2Test() throws Exception {
+        Client client = new Client();
+        Map<String, String> query = new HashMap<String, String>();
+        query.put("versionId", "123");
+        query.put("acl", "");
+
+        Assert.assertEquals("?acl&versionId=123", client.buildCanonicalizedQueryStringV2(query));
+    }
+
+    @Test
+    public void getRegionIdFromEndpointTest() throws Exception {
+        Client client = new Client();
+
+        // classic: oss-{region}.aliyuncs.com
+        Assert.assertEquals("cn-hangzhou",
+            client.getRegionIdFromEndpoint("oss-cn-hangzhou.aliyuncs.com"));
+        Assert.assertEquals("cn-shanghai",
+            client.getRegionIdFromEndpoint("oss-cn-shanghai.aliyuncs.com"));
+
+        // dual-stack / ipv6: {region}.oss.aliyuncs.com
+        Assert.assertEquals("cn-hangzhou",
+            client.getRegionIdFromEndpoint("cn-hangzhou.oss.aliyuncs.com"));
+        Assert.assertEquals("cn-shanghai",
+            client.getRegionIdFromEndpoint("cn-shanghai.oss.aliyuncs.com"));
+        Assert.assertEquals("ap-southeast-1",
+            client.getRegionIdFromEndpoint("ap-southeast-1.oss.aliyuncs.com"));
+
+        // IDPT MGW: {service}.{region}.mgw.{idptcloud variant}.alibaba
+        Assert.assertEquals("ap-jakarta-idpt2",
+            client.getRegionIdFromEndpoint(
+                "mgw.ap-jakarta-idpt2.mgw.idptcloud03api.alibaba"));
+        Assert.assertEquals("ap-jakarta-idpt2",
+            client.getRegionIdFromEndpoint(
+                "mgw-internal.ap-jakarta-idpt2.mgw.idptcloud03api.alibaba"));
+        Assert.assertEquals("ap-paris-idpt",
+            client.getRegionIdFromEndpoint(
+                "mgw.ap-paris-idpt.mgw.idptcloud06api.alibaba"));
+
+        // fallback
+        Assert.assertEquals("cn-hangzhou",
+            client.getRegionIdFromEndpoint(null));
+        Assert.assertEquals("cn-hangzhou",
+            client.getRegionIdFromEndpoint(""));
+        Assert.assertEquals("cn-hangzhou",
+            client.getRegionIdFromEndpoint("custom.endpoint.com"));
+    }
+
+    @Test
+    public void getIdptMgwHostTest() throws Exception {
+        Client client = new Client();
+        InterceptorContext context = new InterceptorContext();
+        context.request = new InterceptorContext.InterceptorContextRequest();
+        context.request.hostMap = new HashMap<String, String>();
+        context.request.hostMap.put("userid", "123456789");
+
+        assertIdptMgwHost(client, context,
+            "mgw.ap-jakarta-idpt2.mgw.idptcloud03api.alibaba");
+        assertIdptMgwHost(client, context,
+            "mgw-internal.ap-jakarta-idpt2.mgw.idptcloud03api.alibaba");
+        assertIdptMgwHost(client, context,
+            "mgw.ap-paris-idpt.mgw.idptcloud06api.alibaba");
+    }
+
+    private void assertIdptMgwHost(
+        Client client,
+        InterceptorContext context,
+        String endpoint) throws Exception {
+
+        Assert.assertEquals(
+            "123456789." + endpoint,
+            client.getHost(null, null, endpoint, context));
+    }
+}

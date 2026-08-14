@@ -89,7 +89,10 @@ func (client *Client) ModifyRequest(context *spi.InterceptorContext, attributeMa
 
 	}
 
+	dateTime := tea.String("")
 	if tea.BoolValue(string_.Equals(signatureVersion, tea.String("v4"))) {
+		dateTime = openapiutil.GetTimestamp()
+		request.Headers["x-acs-date"] = dateTime
 		if tea.BoolValue(util.EqualString(signatureAlgorithm, tea.String("ACS4-HMAC-SM3"))) {
 			request.Headers["x-acs-content-sm3"] = hashedRequestPayload
 		} else {
@@ -125,17 +128,15 @@ func (client *Client) ModifyRequest(context *spi.InterceptorContext, attributeMa
 			if !tea.BoolValue(util.IsUnset(request.Headers["content-type"])) {
 				headers = request.Headers
 			} else if tea.BoolValue(string_.Equals(request.ReqBodyType, tea.String("formData"))) && tea.BoolValue(string_.Equals(request.Action, tea.String("DownloadFile"))) && tea.BoolValue(string_.Equals(request.Pathname, tea.String("/v2/file/download"))) {
-				headersArray := map_.KeySet(request.Headers)
-				for _, key := range headersArray {
-					headers[tea.StringValue(key)] = request.Headers[tea.StringValue(key)]
-				}
-				headers["content-type"] = tea.String("application/x-www-form-urlencoded; charset=UTF-8")
+				request.Headers["content-type"] = tea.String("application/x-www-form-urlencoded; charset=UTF-8")
+				headers = request.Headers
 			} else {
 				headers = request.Headers
 			}
 
 			if tea.BoolValue(string_.Equals(signatureVersion, tea.String("v4"))) {
-				dateNew := string_.SubString(date, tea.Int(0), tea.Int(10))
+				dateNew := string_.SubString(dateTime, tea.Int(0), tea.Int(10))
+				dateNew = string_.Replace(dateNew, tea.String("-"), tea.String(""), nil)
 				region := client.GetRegion(config.Endpoint)
 				signingkey, _err := client.GetSigningkey(signatureAlgorithm, accessKeySecret, region, dateNew)
 				if _err != nil {
@@ -348,22 +349,18 @@ func (client *Client) BuildCanonicalizedHeaders(headers map[string]*string) (_re
 func (client *Client) GetSignedHeaders(headers map[string]*string) (_result []*string, _err error) {
 	headersArray := map_.KeySet(headers)
 	sortedHeadersArray := array.AscSort(headersArray)
-	tmp := tea.String("")
-	separator := tea.String("")
+	result := []*string{}
 	for _, key := range sortedHeadersArray {
 		lowerKey := string_.ToLower(key)
 		if tea.BoolValue(string_.HasPrefix(lowerKey, tea.String("x-acs-"))) {
-			if !tea.BoolValue(string_.Contains(tmp, lowerKey)) {
-				tmp = tea.String(tea.StringValue(tmp) + tea.StringValue(separator) + tea.StringValue(lowerKey))
-				separator = tea.String(";")
+			if !tea.BoolValue(array.Contains(result, lowerKey)) {
+				result = append(result, lowerKey)
 			}
 
 		}
 
 	}
-	_result = make([]*string, 0)
-	_body := string_.Split(tmp, tea.String(";"), nil)
-	_result = _body
+	_result = result
 	return _result, _err
 }
 

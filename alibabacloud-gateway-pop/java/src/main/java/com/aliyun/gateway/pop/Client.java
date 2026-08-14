@@ -315,13 +315,11 @@ public class Client extends com.aliyun.gateway.spi.Client {
         // lower header key
         java.util.List<String> headersArray = com.aliyun.darabonba.map.Client.keySet(headers);
         java.util.Map<String, String> newHeaders = new java.util.HashMap<>();
-        String tmp = "";
         for (String key : headersArray) {
             String lowerKey = com.aliyun.darabonbastring.Client.toLower(key);
             String value = headers.get(key);
             if (!com.aliyun.teautil.Common.isUnset(value)) {
-                if (!com.aliyun.darabonbastring.Client.contains(tmp, lowerKey) || com.aliyun.darabonbastring.Client.equals(lowerKey, "host")) {
-                    tmp = "" + tmp + "," + lowerKey + "";
+                if (com.aliyun.teautil.Common.isUnset(newHeaders.get(lowerKey)) || com.aliyun.darabonbastring.Client.equals(lowerKey, "host")) {
                     newHeaders.put(lowerKey, com.aliyun.darabonbastring.Client.trim(value));
                 } else {
                     newHeaders.put(lowerKey, "" + newHeaders.get(lowerKey) + "," + com.aliyun.darabonbastring.Client.trim(value) + "");
@@ -340,21 +338,26 @@ public class Client extends com.aliyun.gateway.spi.Client {
 
     public java.util.List<String> getSignedHeaders(java.util.Map<String, String> headers) throws Exception {
         java.util.List<String> headersArray = com.aliyun.darabonba.map.Client.keySet(headers);
-        java.util.List<String> sortedHeadersArray = com.aliyun.darabonba.array.Client.ascSort(headersArray);
-        String tmp = "";
-        String separator = "";
-        for (String key : sortedHeadersArray) {
+        java.util.List<String> newHeadersArray = new java.util.ArrayList<>();
+        for (String key : headersArray) {
             String lowerKey = com.aliyun.darabonbastring.Client.toLower(key);
-            if (com.aliyun.darabonbastring.Client.hasPrefix(lowerKey, "x-acs-") || com.aliyun.darabonbastring.Client.equals(lowerKey, "host") || com.aliyun.darabonbastring.Client.equals(lowerKey, "content-type")) {
-                String value = headers.get(key);
-                if (!com.aliyun.teautil.Common.isUnset(value) && !com.aliyun.darabonbastring.Client.contains(tmp, lowerKey)) {
-                    tmp = "" + tmp + "" + separator + "" + lowerKey + "";
-                    separator = ";";
+            String value = headers.get(key);
+            if (!com.aliyun.teautil.Common.isUnset(value)) {
+                com.aliyun.darabonba.array.Client.append(newHeadersArray, lowerKey);
+            }
+
+        }
+        java.util.List<String> sortedHeadersArray = com.aliyun.darabonba.array.Client.ascSort(newHeadersArray);
+        java.util.List<String> result = new java.util.ArrayList<>();
+        for (String key : sortedHeadersArray) {
+            if (com.aliyun.darabonbastring.Client.hasPrefix(key, "x-acs-") || com.aliyun.darabonbastring.Client.equals(key, "host") || com.aliyun.darabonbastring.Client.equals(key, "content-type")) {
+                if (!com.aliyun.darabonba.array.Client.contains(result, key)) {
+                    com.aliyun.darabonba.array.Client.append(result, key);
                 }
 
             }
 
         }
-        return com.aliyun.darabonbastring.Client.split(tmp, ";", null);
+        return result;
     }
 }
